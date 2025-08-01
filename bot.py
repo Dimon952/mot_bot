@@ -5,10 +5,11 @@ import logging
 import json
 import google.generativeai as genai
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, ContextTypes, ExtBot
 from dotenv import load_dotenv
+from typing import Optional
 
-# Загружаем переменные окружения (токены)
+# Загружаем переменные окружения (токены и прокси)
 load_dotenv()
 
 # Настройка логирования
@@ -87,16 +88,26 @@ def main() -> None:
         logger.info(f"Бот перезапущен. Пользователь {config['chat_id']} уже настроен.")
     else:
         logger.info("Запустите бота в Telegram и отправьте команду /start для настройки.")
+    
+    # *** ИЗМЕНЕНИЯ ЗДЕСЬ ***
+    # Получаем URL прокси из переменных окружения
+    proxy_url = os.getenv("PROXY_URL")
 
-    # Создание приложения бота
-    application = Application.builder().token(os.getenv("TELEGRAM_TOKEN")).build()
+    # Создаем билдер приложения
+    application_builder = Application.builder().token(os.getenv("TELEGRAM_TOKEN"))
+
+    # Если PROXY_URL указан в .env, добавляем его в настройки
+    if proxy_url:
+        logger.info(f"Используется прокси: {proxy_url}")
+        application_builder.proxy_url(proxy_url).get_updates_proxy_url(proxy_url)
+
+    # Собираем приложение
+    application = application_builder.build()
 
     # Добавление обработчика команды /start
     application.add_handler(CommandHandler("start", start))
 
     # Настройка планировщика
-    # Важно: время будет по часовому поясу сервера, где запущен бот.
-    # Для более точной настройки по часовому поясу пользователя потребуется усложнение логики.
     schedule.every().day.at("04:00").do(
         lambda: application.job_queue.run_once(send_motivation, 0)
     )
